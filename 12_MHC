@@ -1,0 +1,14 @@
+#!/bin/bash
+
+plink --bfile /path/to/IH \
+      --exclude range /path/to/exclude_regions.txt \
+      --allow-no-sex \
+      --make-bed \
+      --out /path/to/IH_postMHC_PRS
+
+
+plink --bfile /path/to/GSA_clean \
+      --exclude range /path/to/exclude_regions.txt \
+      --allow-no-sex \
+      --make-bed \
+      --out /path/to/GSA_postMHC_PRS
