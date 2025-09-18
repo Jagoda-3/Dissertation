@@ -1,0 +1,75 @@
+#### Allele Frequency checked after merge with:
+plink --bfile /path/to/files --freq --out path/to/freq_check
+
+#### Sex check preformed on files
+plink --bfile /path/to/files --check-sex --out /path/to/sexcheck
+
+
+#!/bin/bash
+
+#### SLURM Job Configuration
+
+#SBATCH --job-name=update
+#SBATCH --output=update.out
+#SBATCH --error=update.log
+#SBATCH --account=scw1450
+#SBATCH --time=0-24:00
+#SBATCH --mem-per-cpu=60000
+#SBATCH -n 1
+#SBATCH -p c_compute_neuro1
+
+
+#### Environment Setup
+
+ROOTDIR="/path/to/rootdir"
+cd "$ROOTDIR" || exit
+
+module purge
+module load plink/1.9
+
+#### Output
+
+output="/path/to/output_QC"
+
+
+#### Dataset Prefixes to Process
+
+dataset=(
+  "/path/to/HumanCore"
+  "/path/to/GSA"
+  "/path/to/Infinium"
+)
+
+
+#### Step 1: Remove bad samples
+#### Step 2: Update Sex
+#### Step 3: Update Phenotype
+
+for dataset in "${dataset[@]}"; do
+  echo "Removing samples for $dataset..."
+  plink --bfile "$dataset" \
+        --remove /path/to/input/NCMH-ASD.remove \
+        --make-bed \
+        --out "${dataset}-noBad"
+  echo "${dataset}-noBad created."
+
+  echo "Updating sex for $dataset..."
+  plink --bfile "${dataset}-noBad" \
+        --update-sex /path/to/input/NCMH-ASD.sex \
+        --allow-no-sex \
+        --make-bed \
+        --out "${dataset}-noBad-sex"
+  echo "${dataset}-noBad-sex created."
+
+  echo "Updating phenotype for $dataset..."
+  plink --bfile "${dataset}-noBad-sex" \
+        --pheno  /path/to/input/NCMH-ASD.pheno \
+        --make-bed \
+        --out "${dataset}-v2"
+  echo "${dataset}-v2 created."
+ echo "Cleaning up intermediate files..."
+  rm "${dataset}-noBad".{bed,bim,fam}
+  rm "${dataset}-noBad-sex".{bed,bim,fam}
+  echo "Cleanup done for $dataset."
+
+done
