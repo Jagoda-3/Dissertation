@@ -1,5 +1,8 @@
-### **PLINK Merge from VCF Files **
+#### Allele frequency checked before with:
 
+plink --bfile /path/to/files --freq --out /path/to/freq
+
+### **PLINK Merge from VCF Files **
 #### **Step 1: Convert per-chromosome VCFs to PLINK binary format**
 ###For each chromosome VCF file (`chr<chr>.dose.vcf.gz`), convert it to PLINK binary format (`.bed`, `.bim`, `.fam`) using **PLINK v2**.
 ###Apply filters:
