@@ -1,0 +1,90 @@
+#!/bin/bash
+set -e
+module load plink/2.0
+
+#### Configuration
+OUT_DIR="path/to/fine_mapping"
+THREADS=${SLURM_CPUS_PER_TASK:-8}
+GWAS_SUMSTATS="/path/to/meta_analysis_final_annotated.sorted.tbl"
+FINEMAP_EXE="/path/to/finemap_v1.4.2_x86_64/finemap_v1.4.2_x86_64"
+
+IH_BFILE="/path/to/bfiles/IH"
+GSA_BFILE="/path/to/GSA_clean"
+
+N_IH=468
+N_GSA=760
+TOTAL_N_SAMPLES=$((N_IH + N_GSA))
+
+mkdir -p "$OUT_DIR"
+
+#### SELECT TOP 3 SNPs
+TOP_SNPS_FILE="${OUT_DIR}/top3_snps.txt"
+tail -n +2 "$GWAS_SUMSTATS" | sort -k6,6g | head -3 | awk '{print $1, $8, $9}' > "$TOP_SNPS_FILE"
+
+TOP_SNPS=()
+while read -r line; do TOP_SNPS+=("$line"); done < "$TOP_SNPS_FILE"
+
+echo " Top 3 SNPs selected "
+for snp in "${TOP_SNPS[@]}"; do echo "  $snp"; done
+
+#### PROCESS EACH SNP 
+for line in "${TOP_SNPS[@]}"; do
+    read -r RSID CHR POS <<< "$line"
+    START=$((POS - 250000))
+    END=$((POS + 250000))
+    REGION_NAME="chr${CHR}_${START}_${END}_combined"
+    OUT_PREFIX="${OUT_DIR}/${REGION_NAME}"
+
+    echo " Processing $RSID ($CHR:$POS ±250kb) "
+
+    #### Step 1: Extract region from each panel
+    plink2 --bfile "$IH_BFILE" --chr "$CHR" --from-bp "$START" --to-bp "$END" \
+           --make-bed --threads "$THREADS" --allow-no-sex --out "${OUT_PREFIX}_IH"
+    plink2 --bfile "$GSA_BFILE" --chr "$CHR" --from-bp "$START" --to-bp "$END" \
+           --make-bed --threads "$THREADS" --allow-no-sex --out "${OUT_PREFIX}_GSA"
+
+    #### Step 2: Merge the panels
+    plink --bfile "${OUT_PREFIX}_IH" \
+          --bmerge "${OUT_PREFIX}_GSA.bed" "${OUT_PREFIX}_GSA.bim" "${OUT_PREFIX}_GSA.fam" \
+          --make-bed --threads "$THREADS" --allow-no-sex --out "$OUT_PREFIX" \
+          || { echo "Merge failed for $RSID, skipping."; continue; }
+
+    #### Step 3: Calculate MAF
+    plink --bfile "$OUT_PREFIX" --freq --threads "$THREADS" --allow-no-sex --out "${OUT_PREFIX}_freq"
+
+    #### Step 4: Create Z file
+    FREQ_FILE="${OUT_PREFIX}_freq.frq"
+    Z_FILE="${OUT_PREFIX}.z"
+    awk 'NR==FNR {if(NR>1) maf[$2]=$5; next}
+         FNR>1 && ($1 in maf) && maf[$1]!="NA" && $5>0 {
+             print $1,$8,$9,$2,$3,maf[$1],$4,$5
+         }' "$FREQ_FILE" "$GWAS_SUMSTATS" > "$Z_FILE"
+    sed -i '1irsid chromosome position allele1 allele2 maf beta se' "$Z_FILE"
+
+    #### Step 5: SNP list for LD
+    SNP_LIST_FILE="${OUT_PREFIX}_snplist.txt"
+    awk 'NR>1{print $1}' "$Z_FILE" > "$SNP_LIST_FILE"
+
+    #### Step 6: LD matrix
+    plink --bfile "$OUT_PREFIX" \
+          --extract "$SNP_LIST_FILE" \
+          --r square spaces \
+          --threads "$THREADS" \
+          --allow-no-sex \
+          --out "$OUT_PREFIX"
+
+    #### Step 7: FINEMAP input
+    MASTER_FILE="${OUT_DIR}/master_${REGION_NAME}.in"
+    cat > "$MASTER_FILE" <<EOF
+z;ld;snp;config;cred;log;n_samples
+${REGION_NAME}.z;${REGION_NAME}.ld;${REGION_NAME}.snp;${REGION_NAME}.config;${REGION_NAME}.cred;${REGION_NAME}.log;${TOTAL_N_SAMPLES}
+EOF
+
+    #### Step 8: Run FINEMAP
+    (cd "$OUT_DIR" && "$FINEMAP_EXE" --sss --in-files "$(basename "$MASTER_FILE")" \
+                                     --n-causal-snps 1 \
+                                     --n-threads "$THREADS" \
+                                     --log)
+
+    echo "=== Done $RSID ==="
+done
