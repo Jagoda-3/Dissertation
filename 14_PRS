@@ -1,0 +1,49 @@
+#!/bin/bash
+#SBATCH --job-name=prs_cs
+#SBATCH -n 1
+#SBATCH -c 1
+#SBATCH --array=1-22
+#SBATCH --time=12:00:00  
+#SBATCH --mem=40G         
+#SBATCH --output=prs_cs_%A_%a.out
+#SBATCH --error=prs_cs_%A_%a.err
+
+module load plink/1.9
+module load python/3.7.0
+set -e
+
+# Threading limits
+export MKL_NUM_THREADS=${SLURM_CPUS_PER_TASK}
+export NUMEXPR_NUM_THREADS=${SLURM_CPUS_PER_TASK}
+export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}
+
+# Parameters
+CHR=${SLURM_ARRAY_TASK_ID}
+
+# Split PLINK file
+plink --bfile /path/to/GSA_EUR \
+      --chr $CHR \
+      --make-bed \
+      --allow-no-sex \
+      --out /path/to/GSA_EUR_chr${CHR}
+
+# Run PRS-CS
+python3 /path/to/input/1000genomes/PRScs/PRScs.py \
+    --ref_dir /path/to/ldblk_1kg_eur \
+    --bim_prefix /path/to/GSA_EUR_chr${CHR} \
+    --sst_file /path/to/grove-ripke-als-2019-eur-asd.summary \
+    --n_gwas 44368 \
+    --chr $CHR \
+    --n_iter 25000 \
+    --n_burnin 10000 \
+    --out_dir /path/to/PRS-CS_chr${CHR}
+
+# Score with PLINK2
+module unload plink/1.9
+module load plink/2.0
+
+plink2 --bfile /path/to/GSA_EUR_chr${CHR} \
+       --allow-no-sex \
+       --score /path/to/PRS-CS_chr${CHR}_pst_eff_a1_b0.5_phiauto_chr${CHR}.txt 2 4 6 header \
+       --out /path/to/PRS-CS_scores_chr${CHR} \
+       --threads ${SLURM_CPUS_PER_TASK}
