@@ -1,0 +1,47 @@
+#!/bin/bash
+
+set -e
+
+#### --- Configuration ---
+PLINK="plink"
+DATA1="/path/to/HumanCore_clean"
+DATA2="/path/to/Infinium_clean"
+OUTPUT="/path/to/IH"
+
+echo "Simple Merge Process"
+echo "Dataset 1 (Base): ${DATA1}"
+echo "Dataset 2 (To Merge): ${DATA2}"
+
+#### Step 1: Direct Merge
+
+$PLINK --bfile ${DATA1} \
+       --bmerge ${DATA2} \
+       --allow-no-sex \
+       --make-bed \
+       --out ${OUTPUT} || true
+
+#### Step 2:(Encase of Failure) in this Case Direct Merge Worked
+
+if [ ! -f "${OUTPUT}.missnp" ]; then
+  echo "SUCCESS! Merge completed without any errors."
+  echo "Your final files are: ${OUTPUT}.bed/bim/fam"
+  exit 0
+fi
+
+## If merge fails
+echo "[Step 2] Initial merge failed. A list of problem SNPs was found in ${OUTPUT}.missnp"
+echo "          Merge again, but exclude problematic SNPs."
+echo ""
+
+## Using .missnp file from the failed attempt to create exclusion list.
+awk '{print $2}' ${OUTPUT}.missnp > problem_snps_to_exclude.txt
+
+
+$PLINK --bfile ${DATA1} \
+       --bmerge ${DATA2} \
+       --exclude problem_snps_to_exclude.txt \
+       --allow-no-sex \
+       --make-bed \
+       --out ${OUTPUT}_final
+
+echo "Done."
