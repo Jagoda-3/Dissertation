@@ -1,0 +1,17 @@
+#!/bin/bash
+
+METAL_EXECUTABLE="./generic-metal/metal"
+
+$METAL_EXECUTABLE << EOF
+SCHEME STDERR
+MARKER SNP
+ALLELE A1 A2
+EFFECT BETA
+STDERR SE
+PVALUE P
+WEIGHT NMISS
+PROCESS /path/to/IH_for_metal.txt
+PROCESS /path/to/GSA_for_metal.txt
+OUTFILE /path/to/meta_analysis_results .tbl
+ANALYZE
+QUIT
