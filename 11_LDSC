@@ -1,0 +1,19 @@
+#!/bin/bash
+#SBATCH --job-name=ldsc
+#SBATCH --output=ldsc_rg_analysis_%j.out
+#SBATCH --error=ldsc_rg_analysis_%j.err
+#SBATCH --time=12:00:00
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=24G
+
+# Load LDSC module
+module load ldsc/1.0.1
+
+python /path/to/ldsc-master/ldsc.py \
+  --rg /path/to/meta_analysis.munged.sumstats.gz,/path/to/grove-ripke-als-2019-eur-asd.munged.sumstats.gz \
+  --ref-ld-chr /path/to/baselineLD_v2.2/baselineLD. \
+  --w-ld-chr /path/to/1000G_Phase3_weights_hm3_no_MHC/weights.hm3_noMHC. \
+  --frqfile-chr /path/to/1000G_Phase3_frq/1000G.EUR.QC. \
+  --samp-prev 0.500,0.396 \
+  --pop-prev 0.01,0.01 \
+  --out /path/to/ASD_vs_Reference4 \
