@@ -1,0 +1,49 @@
+#### This is R code
+
+pca_file_path <- "/path/to/GSA_MHC"
+output_list_path <- "/path/to/GSA_euro"
+
+
+pcs_to_use <- paste0("pc", 1:3)
+probability_threshold <- 0.99
+
+
+#### 1. Load the data
+pca_data <- read_table(pca_file_path)
+
+#### 2. Define the European reference cluster
+message("Defining the European reference cluster...")
+eur_cluster_data <- pca_data %>%
+  filter(super_pop == "EUR") %>%
+  select(all_of(pcs_to_use))
+
+#### 3. Calculate the statistics for the EUR cluster
+cluster_center <- colMeans(eur_cluster_data)
+cluster_covariance <- cov(eur_cluster_data)
+
+#### 4. Get Welsh samples
+test_samples <- pca_data %>%
+  filter(super_pop == "TEST")
+
+#### 5. Calculate the Mahalanobis distance for each sample
+message("Calculating Mahalanobis distance for test samples...")
+test_pcs <- test_samples %>% select(all_of(pcs_to_use))
+distances <- mahalanobis(x = test_pcs, center = cluster_center, cov = cluster_covariance)
+
+#### 6. Determine the distance threshold based on a chi-squared distribution
+distance_threshold <- qchisq(p = probability_threshold, df = length(pcs_to_use))
+message("Distance threshold set to: ", round(distance_threshold, 2), " (based on a ", probability_threshold*100, "% probability contour)")
+
+#### 7. Identify which samples fall below the threshold
+european_fids_iids <- test_samples %>%
+  mutate(mahal_dist = distances) %>%
+  filter(mahal_dist < distance_threshold) %>%
+  select(fid, iid)
+
+message("Identified ", nrow(european_fids_iids), " samples within the European cluster.")
+
+#### 8. List of samples for PLINK
+message("Writing sample list to: ", output_list_path)
+write_tsv(european_fids_iids, output_list_path, col_names = FALSE)
+
+message("Done.")
