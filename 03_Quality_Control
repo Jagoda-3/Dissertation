@@ -1,0 +1,46 @@
+#### Quality control
+
+#### MAF
+
+plink --bfile /path/to/GSA  --mac 5 --make-bed --out /path/to/GSA_mac
+plink --bfile /path/to/HumanCore --mac 5 --make-bed --out /path/to/HumanCore_mac
+plink --bfile /path/to/Infinium --mac 5 --make-bed --out /path/to/Infinium_mac
+
+
+#### Missingness
+
+plink --bfile /path/to/GSA_mac --geno 0.02 --make-bed --out /path/to/GSA_missing
+plink --bfile /path/to/GSA_mac --mind 0.02 --make-bed --out /path/to/GSA_missing
+
+plink --bfile /path/to/HumanCore_mac --geno 0.02 --make-bed --out /path/to/HumanCore_missing
+plink --bfile /path/to/HumanCore_mac --mind 0.02 --make-bed --out /path/to/HumanCore_missing
+
+plink --bfile /path/to/Infinium_mac --geno 0.02 --make-bed --out /path/to/Infinium_missing
+plink --bfile /path/to/Infinium_mac --mind 0.02 --make-bed --out /path/to/Infinium_missing
+
+
+#### Hardy-Weinberg
+
+plink --bfile /path/to/GSA_missing --hardy --out /path/to/GSA_before.hwe
+awk '$9 >= 1e-20' /path/to/GSA_before.hwe | awk 'NR > 1 {print $2}' > /path/to/GSA.hwe
+plink --bfile /path/to/GSA_missing  --extract /path/to/GSA.hwe --make-bed --out /path/to/GSA_hwe_filtered
+
+plink --bfile /path/to/HumanCore_missing --hardy --out /path/to/HumanCore_before.hwe
+awk '$9 >= 1e-20' /path/to/HumanCore_before.hwe | awk 'NR > 1 {print $2}' > /path/to/HumanCore.hwe
+plink --bfile /path/to/HumanCore_missing  --extract /path/to/HumanCore.hwe --make-bed --out /path/to/HumanCore_hwe_filtered
+
+plink --bfile /path/to/Infinium_missing --hardy --out /path/to/Infinium_before.hwe
+awk '$9 >= 1e-20' /path/to/Infinium_before.hwe | awk 'NR > 1 {print $2}' > /path/to/Infinium.hwe
+plink --bfile /path/to/Infinium_missing  --extract /path/to/Infinium.hwe --make-bed --out /path/to/Infinium_hwe_filtered
+
+
+#### Heterozygosity
+
+plink --bfile /path/to/GSA_hwe_filtered --het --out /path/to/GSA_het
+plink --bfile /path/to/GSA_hwe_filtered --remove /path/to/GSA_het --make-bed --out /path/to/GSA_clean
+
+plink --bfile /path/to/HumanCore_hwe_filtered --het --out /path/to/HumanCore_het
+plink --bfile /path/to/HumanCore_hwe_filtered --remove /path/to/HumanCore_het --make-bed --out /path/to/HumanCore_clean
+
+plink --bfile /path/to/Infinium_hwe_filtered --het --out /path/to/Infinium_het
+plink --bfile /path/to/Infinium_hwe_filtered --remove /path/to/Infinium_het --make-bed --out /path/to/Infinium_clean
