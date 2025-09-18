@@ -1,0 +1,72 @@
+#!/bin/bash
+
+#### File paths
+GWAS1="/path/to/IH_GWAS.assoc.logistic"
+BIM1="/path/to/IH.bim"
+GWAS2="/path/to/GSA_GWAS.assoc.logistic"
+BIM2="/path/to/GSA.bim"
+OUTDIR="/path/to/dir"
+
+mkdir -p $OUTDIR
+
+process_gwas () {
+  local GWAS=$1
+  local BIM=$2
+  local PREFIX=$3
+
+  #### Extract columns and calculate beta, SE
+  awk '
+  BEGIN {OFS="\t"}
+  NR==1 {
+      for(i=1; i<=NF; i++) {
+          if($i=="SNP") snp_col=i
+          if($i=="A1") a1_col=i  
+          if($i=="OR") or_col=i
+          if($i=="STAT") stat_col=i
+          if($i=="P") p_col=i
+          if($i=="NMISS") nmiss_col=i
+          if($i=="TEST") test_col=i
+      }
+      print "SNP","A1","A2","BETA","SE","P","NMISS"
+      next
+  }
+  $test_col=="ADD" && $or_col>0 && $stat_col!=0 {
+      beta = log($or_col)
+      se = (beta==0?0:(beta<0?-beta:beta)/($stat_col<0?- $stat_col:$stat_col))
+      if(se>0) print $snp_col, $a1_col, "REF", beta, se, $p_col, $nmiss_col
+  }' $GWAS > ${OUTDIR}/${PREFIX}_temp.txt
+
+  #### BIM lookup
+  awk 'BEGIN{OFS="\t"} {print $2, $5, $6}' $BIM > ${OUTDIR}/${PREFIX}_bim.txt
+
+  #### Merge with BIM for A2
+  awk '
+  BEGIN{OFS="\t"}
+  FILENAME==ARGV[1]{a1[$1]=$2; a2[$1]=$3; next}
+  FNR==1{print; next}
+  {
+      snp=$1; gwas_a1=$2
+      if(snp in a1){
+          if(gwas_a1==a1[snp]) a2s=a2[snp]
+          else if(gwas_a1==a2[snp]) a2s=a1[snp]
+          else next
+          print snp, gwas_a1, a2s, $4, $5, $6, $7
+      }
+  }' ${OUTDIR}/${PREFIX}_bim.txt ${OUTDIR}/${PREFIX}_temp.txt \
+  > ${OUTDIR}/${PREFIX}_for_metal.txt
+
+  rm ${OUTDIR}/${PREFIX}_temp.txt ${OUTDIR}/${PREFIX}_bim.txt
+}
+
+#### Run on both datasets
+process_gwas $GWAS1 $BIM1 "IH"
+process_gwas $GWAS2 $BIM2 "GSA"
+
+#### Summary
+IH_count=$(tail -n +2 ${OUTDIR}/IH_for_metal.txt | wc -l)
+GSA_count=$(tail -n +2 ${OUTDIR}/GSA_for_metal.txt | wc -l)
+echo "IH variants: $IH_count"
+echo "GSA variants: $GSA_count"
+comm -12 <(cut -f1 ${OUTDIR}/IH_for_metal.txt | tail -n +2 | sort) \
+         <(cut -f1 ${OUTDIR}/GSA_for_metal.txt | tail -n +2 | sort) | wc -l \
+    | xargs echo "Overlapping SNPs:"
