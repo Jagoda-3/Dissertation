@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH --job-name=munge
+#SBATCH --output=munge_step1_%j.out
+#SBATCH --error=munge_%j.err
+#SBATCH --time=04:00:00
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=16G
+
+module load ldsc/1.0.1
+
+python /path/to/ldsc-master/munge_sumstats.py \
+--sumstats /path/to/meta_analysis.tbl \
+--out /path/to/meta_analysis.munged \
+--N-col N \
+--snp SNP \
+--a1 Allele1 \
+--a2 Allele2 \
+--p P \
+--signed-sumstats Z,0 \
+--ignore Effect,StdErr \
