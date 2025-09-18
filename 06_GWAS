@@ -1,0 +1,25 @@
+#!/bin/bash
+#SBATCH --job-name=GWAS_analysis
+#SBATCH --output=GWAS_%j.out
+#SBATCH --error=GWAS_%j.err
+#SBATCH --time=12:00:00
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=18G
+
+plink  --autosome \
+       --bfile /path/to/GSA_clean \
+       --logistic \
+       --hide-covar \
+       --covar /path/to/GSA.covar \
+       --parameters 1-10 \
+       --allow-no-sex \
+       --out /path/to/GSA_GWAS
+
+plink  --autosome \
+       --bfile /path/to/IH_merged \
+       --logistic \
+       --hide-covar \
+       --covar /path/to/IH.covar \
+       --parameters 1-10 \
+       --allow-no-sex \
+       --out /path/to/IH_GWAS
