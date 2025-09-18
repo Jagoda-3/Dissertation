@@ -1,0 +1,39 @@
+### **PLINK Merge from VCF Files **
+
+#### **Step 1: Convert per-chromosome VCFs to PLINK binary format**
+###For each chromosome VCF file (`chr<chr>.dose.vcf.gz`), convert it to PLINK binary format (`.bed`, `.bim`, `.fam`) using **PLINK v2**.
+###Apply filters:
+##* **Minor Allele Count (MAC) ≥ 5**
+
+
+# Loop through chromosomes 1 to X (i.e. 1 to 23)
+for chr in {1..22} X; do
+    plink2 \
+        --vcf chr${chr}.empiricalDose.vcf.gz \
+        --make-bed \
+        --mac 5 \
+        --out ${array_name}_chr${chr}_rsq3
+done
+
+
+
+#### **Step 2: Create a merge list for chromosomes 2 to X**
+###Prepare a plain text file `merge.txt` listing the `.bed`, `.bim`, and `.fam` files for chromosomes 2 to X.
+
+
+${array_name}_chr2_rsq3.bed ${array_name}_chr2_rsq3.bim ${array_name}_chr2_rsq3.fam
+${array_name}_chr3_rsq3.bed ${array_name}_chr3_rsq3.bim ${array_name}_chr3_rsq3.fam
+...
+${array_name}_chrX_rsq3.bed ${array_name}_chrX_rsq3.bim ${array_name}_chrX_rsq3.fam
+
+
+
+#### **Step 3: Merge all chromosomes using PLINK v1.9**
+###Use **PLINK v1.9** to merge all chromosomes, starting with chromosome 1 and merging the rest via `--merge-list`.
+
+
+plink \
+    --bfile ${array_name}_chr1_rsq3 \
+    --merge-list merge.txt \
+    --make-bed \
+    --out ${array_name}_chrall_rsq3
