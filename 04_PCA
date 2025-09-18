@@ -1,0 +1,107 @@
+#### Harmonisation Completed in STATA
+
+#### PCA
+
+#!/bin/bash
+
+set -e
+
+#### Configuration 
+INPUT_DIR="/path/to/dir"
+OUTPUT_DIR="/path/to/dir"
+
+#### Path to the main 1000G plink fileset 
+REF_1000G="/path/to/all-1000g-phase3-chrall-mac5-v2"
+REF_1000G_POP_FILE="/path/to/all-1000g-phase3-chrall-mac5-v2.population"
+REF_1000G_SUPERPOP_FILE="/path/to/all-1000g-phase3-chrall-mac5-v2.super-population"
+
+#### List of your samples to process
+SAMPLES=(
+  "path/to/GSA"
+  "path/to/HumanCore"
+  "path/to/Infinium"
+)
+
+
+mkdir -p "$OUTPUT_DIR"
+
+for SAMPLE_BASE in "${SAMPLES[@]}"; do
+
+  echo "Processing: ${SAMPLE_BASE}"
+
+  #### Step 1: Merge sample with 1000G, automatically handling SNP mismatches
+  plink \
+    --bfile "${INPUT_DIR}/${SAMPLE_BASE}" \
+    --bmerge "${REF_1000G}.bed" "${REF_1000G}.bim" "${REF_1000G}.fam" \
+    --allow-no-sex \
+    --make-bed \
+    --out "${OUTPUT_DIR}/${SAMPLE_BASE}_merge_attempt" || true
+
+  if [ -f "${OUTPUT_DIR}/${SAMPLE_BASE}_merge_attempt-merge.missnp" ]; then
+    plink \
+      --bfile "${INPUT_DIR}/${SAMPLE_BASE}" \
+      --exclude "${OUTPUT_DIR}/${SAMPLE_BASE}_merge_attempt-merge.missnp" \
+      --allow-no-sex \
+      --make-bed \
+      --out "${OUTPUT_DIR}/${SAMPLE_BASE}_harmonised"
+
+  else
+    cp "${INPUT_DIR}/${SAMPLE_BASE}.bed" "${OUTPUT_DIR}/${SAMPLE_BASE}_harmonised.bed"
+    cp "${INPUT_DIR}/${SAMPLE_BASE}.bim" "${OUTPUT_DIR}/${SAMPLE_BASE}_harmonised.bim"
+    cp "${INPUT_DIR}/${SAMPLE_BASE}.fam" "${OUTPUT_DIR}/${SAMPLE_BASE}_harmonised.fam"
+  fi
+
+  plink \
+    --bfile "${OUTPUT_DIR}/${SAMPLE_BASE}_harmonised" \
+    --bmerge "${REF_1000G}.bed" "${REF_1000G}.bim" "${REF_1000G}.fam" \
+    --allow-no-sex \
+    --make-bed \
+    --out "${OUTPUT_DIR}/${SAMPLE_BASE}_merged_1000G"
+
+  #### Step 2: LD Pruning
+  plink \
+    --bfile "${OUTPUT_DIR}/${SAMPLE_BASE}_merged_1000G" \
+    --indep-pairwise 50 5 0.1 \
+    --out "${OUTPUT_DIR}/${SAMPLE_BASE}_pruned_snps"
+
+ #### Step 3: Run PCA
+  plink \
+    --bfile "${OUTPUT_DIR}/${SAMPLE_BASE}_merged_1000G" \
+    --extract "${OUTPUT_DIR}/${SAMPLE_BASE}_pruned_snps.prune.in" \
+    --pca 10 \
+    --allow-no-sex \
+    --out "${OUTPUT_DIR}/${SAMPLE_BASE}_pca_results"
+
+  #### Step 4: Formatting
+  FINAL_OUTPUT_FILE="${OUTPUT_DIR}/${SAMPLE_BASE}-pcs-with-pop.txt"
+  PCA_RESULTS_FILE="${OUTPUT_DIR}/${SAMPLE_BASE}_pca_results.eigenvec"
+
+  awk '
+    BEGIN { OFS="\t" }
+    # ARGIND==1: Read the first file (population) into the pop[] array
+    ARGIND==1 { pop[$2]=$3; next }
+    # ARGIND==2: Read the second file (super-population) into the superpop[] array
+    ARGIND==2 { superpop[$2]=$3; next }
+
+    # ARGIND==3: Read the third file (PCA results) and do the main work
+    ARGIND==3 {
+        line = $1 OFS $2 OFS $3 OFS $4 OFS $5 OFS $6 OFS $7 OFS $8 OFS $9 OFS $10 OFS $11 OFS $12
+        if ($2 in pop) {
+            ref_lines[NR] = line OFS pop[$2] OFS superpop[$2]
+        } else {
+            test_lines[NR] = line OFS "TEST" OFS "TEST"
+        }
+    }
+
+    END {
+        print "FID","IID","PC1","PC2","PC3","PC4","PC5","PC6","PC7","PC8","PC9","PC10","POP","SUPER_POP"
+        for (i in test_lines) { print test_lines[i] }
+        for (i in ref_lines) { print ref_lines[i] }
+    }
+  ' "$REF_1000G_POP_FILE" "$REF_1000G_SUPERPOP_FILE" "$PCA_RESULTS_FILE" > "$FINAL_OUTPUT_FILE"
+
+  echo "Finished. Final output file is: ${FINAL_OUTPUT_FILE}"
+
+done
+
+	
