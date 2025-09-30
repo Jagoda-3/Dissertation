@@ -9,7 +9,7 @@ plink --bfile /path/to/files --freq --out /path/to/freq
 ##* **Minor Allele Count (MAC) ≥ 5**
 
 
-# Loop through chromosomes 1 to X (i.e. 1 to 23)
+# Loop through chromosomes 1 to X (i.e. 1 to 22)
 for chr in {1..22} X; do
     plink2 \
         --vcf chr${chr}.empiricalDose.vcf.gz \
@@ -20,7 +20,7 @@ done
 
 
 
-#### **Step 2: Create a merge list for chromosomes 2 to X**
+#### **Step 2: Create a merge list for chromosomes 2 to 22**
 ###Prepare a plain text file `merge.txt` listing the `.bed`, `.bim`, and `.fam` files for chromosomes 2 to X.
 
 
